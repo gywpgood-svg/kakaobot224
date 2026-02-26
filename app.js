@@ -1,64 +1,23 @@
 const express = require("express");
-const mongoose = require("mongoose");
+const cors = require("cors");
 
 const app = express();
+
+app.use(cors());
 app.use(express.json());
 
-mongoose.connect(process.env.MONGODB_URI)
-.then(()=>console.log("MongoDB 연결 성공"))
-.catch(err=>console.log(err));
-
-const UserSchema = new mongoose.Schema({
-  uniqueId: String,
-  nickHistory: [String],
-  joinHistory: [String],
-  leaveHistory: [String]
+// 🔥 루트 확인용 (이게 있어야 화면에 글자 나옴)
+app.get("/", (req, res) => {
+  res.send("서버 정상 작동중 🔥");
 });
 
-const User = mongoose.model("User", UserSchema);
-
-function today(){
-  const d = new Date();
-  return d.getFullYear()+"."+
-         String(d.getMonth()+1).padStart(2,"0")+"."+
-         String(d.getDate()).padStart(2,"0");
-}
-
-app.get("/", (req,res)=>{
-  res.send("alive");
+// 테스트용 API
+app.get("/health", (req, res) => {
+  res.json({ status: "ok" });
 });
 
-app.post("/join", async (req,res)=>{
-  const { uniqueId, nick } = req.body;
-  let user = await User.findOne({uniqueId});
-
-  if(!user){
-    user = new User({
-      uniqueId,
-      nickHistory:[nick],
-      joinHistory:[],
-      leaveHistory:[]
-    });
-  }
-
-  if(!user.nickHistory.includes(nick))
-    user.nickHistory.push(nick);
-
-  user.joinHistory.push(today());
-  await user.save();
-
-  res.json({status:"ok"});
-});
-
-app.post("/leave", async (req,res)=>{
-  const { uniqueId } = req.body;
-  let user = await User.findOne({uniqueId});
-  if(!user) return res.json({status:"none"});
-
-  user.leaveHistory.push(today());
-  await user.save();
-  res.json({status:"ok"});
-});
-
+// 반드시 이렇게 해야 Render에서 정상 작동
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, ()=> console.log("서버 실행중"));
+app.listen(PORT, () => {
+  console.log("Server running on port " + PORT);
+});
