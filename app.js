@@ -61,7 +61,7 @@ app.post("/가입하다", async (req, res) => {
 
 
 // =====================================================
-// 2️⃣ 사용자 기록 API
+// 2️⃣ 사용자 기록 API (수동 업데이트용)
 // =====================================================
 app.post("/사용자_기록", async (req, res) => {
   try {
@@ -89,7 +89,7 @@ app.post("/사용자_기록", async (req, res) => {
 
 
 // =====================================================
-// 3️⃣ 닉네임 자동 동기화 API
+// 3️⃣ 🔥 닉네임 자동 동기화 API (중복 기록 방지 버전)
 // =====================================================
 app.post("/user-sync", async (req, res) => {
   try {
@@ -99,21 +99,43 @@ app.post("/user-sync", async (req, res) => {
       return res.status(400).json({ error: "값이 부족함" });
     }
 
-    const { error } = await supabase
+    // 1️⃣ 기존 닉네임 조회
+    const { data: existing, error: selectError } = await supabase
       .from("users")
-      .upsert(
-        {
-          kakao_id,
-          current_nickname: nickname
-        },
-        { onConflict: "kakao_id" }
-      );
+      .select("current_nickname")
+      .eq("kakao_id", kakao_id)
+      .single();
 
-    if (error) {
-      return res.status(500).json({ error: error.message });
+    // 유저가 아예 없는 경우
+    if (selectError && selectError.code === "PGRST116") {
+      await supabase.from("users").insert({
+        kakao_id,
+        current_nickname: nickname
+      });
+
+      return res.json({ newUser: true });
     }
 
-    res.json({ success: true });
+    if (selectError) {
+      return res.status(500).json({ error: selectError.message });
+    }
+
+    // 2️⃣ 닉네임이 다를 때만 업데이트
+    if (existing.current_nickname !== nickname) {
+      const { error: updateError } = await supabase
+        .from("users")
+        .update({ current_nickname: nickname })
+        .eq("kakao_id", kakao_id);
+
+      if (updateError) {
+        return res.status(500).json({ error: updateError.message });
+      }
+
+      return res.json({ nicknameChanged: true });
+    }
+
+    // 3️⃣ 같으면 아무것도 안 함
+    return res.json({ noChange: true });
 
   } catch (err) {
     res.status(500).json({ error: "서버 오류" });
@@ -122,7 +144,7 @@ app.post("/user-sync", async (req, res) => {
 
 
 // =====================================================
-// 4️⃣ 🔥 입장 / 퇴장 기록 API 추가
+// 4️⃣ 입장 / 퇴장 기록 API
 // =====================================================
 app.post("/join-leave", async (req, res) => {
   try {
