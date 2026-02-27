@@ -1,3 +1,21 @@
+const express = require("express");
+const { createClient } = require("@supabase/supabase-js");
+
+const app = express();
+app.use(express.json());
+
+// 🔹 Supabase 설정
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_KEY
+);
+
+// 🔹 기본 확인용
+app.get("/", (req, res) => {
+  res.send("서버 정상 작동 중");
+});
+
+// 🔹 /join 라우트
 app.post("/join", async (req, res) => {
   console.log("🔥 /join 요청 들어옴");
   console.log("Body:", req.body);
@@ -32,4 +50,10 @@ app.post("/join", async (req, res) => {
     console.log("❌ 에러:", err);
     res.status(500).json({ error: err.message });
   }
+});
+
+// 🔹 서버 실행
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log("🚀 서버 실행 중, 포트:", PORT);
 });
