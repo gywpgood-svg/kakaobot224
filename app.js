@@ -23,7 +23,7 @@ app.get("/", (req, res) => {
 
 
 // =====================================================
-// 1️⃣ 가입 API (기존 기능 유지)
+// 1️⃣ 가입 API
 // =====================================================
 app.post("/가입하다", async (req, res) => {
   try {
@@ -45,26 +45,23 @@ app.post("/가입하다", async (req, res) => {
         방,
         join_count: 1
       });
-      console.log("✅ 신규 사용자 생성");
     } else {
       await supabase
         .from("사용자")
         .update({ join_count: 기존.join_count + 1 })
         .eq("이름", 이름);
-      console.log("🔄 기존 사용자 업데이트");
     }
 
     res.json({ 성공: true });
 
   } catch (err) {
-    console.error("❌ 오류:", err);
     res.status(500).json({ 오류: err.message });
   }
 });
 
 
 // =====================================================
-// 2️⃣ 사용자 기록 API (기존 유지)
+// 2️⃣ 사용자 기록 API
 // =====================================================
 app.post("/사용자_기록", async (req, res) => {
   try {
@@ -80,21 +77,19 @@ app.post("/사용자_기록", async (req, res) => {
       .eq("kakao_id", 카카오_id);
 
     if (error) {
-      console.error(error);
       return res.status(500).json({ 오류: error.message });
     }
 
     res.json({ 성공: true });
 
   } catch (err) {
-    console.error(err);
     res.status(500).json({ 오류: "서버 오류" });
   }
 });
 
 
 // =====================================================
-// 3️⃣ 🔥 닉네임 자동 동기화 API (핵심)
+// 3️⃣ 닉네임 자동 동기화 API
 // =====================================================
 app.post("/user-sync", async (req, res) => {
   try {
@@ -108,21 +103,75 @@ app.post("/user-sync", async (req, res) => {
       .from("users")
       .upsert(
         {
-          kakao_id: kakao_id,
+          kakao_id,
           current_nickname: nickname
         },
         { onConflict: "kakao_id" }
       );
 
     if (error) {
-      console.error(error);
       return res.status(500).json({ error: error.message });
     }
 
     res.json({ success: true });
 
   } catch (err) {
-    console.error(err);
+    res.status(500).json({ error: "서버 오류" });
+  }
+});
+
+
+// =====================================================
+// 4️⃣ 🔥 입장 / 퇴장 기록 API 추가
+// =====================================================
+app.post("/join-leave", async (req, res) => {
+  try {
+    const { kakao_id, nickname, type } = req.body;
+
+    if (!kakao_id || !nickname || !type) {
+      return res.status(400).json({ error: "값 부족" });
+    }
+
+    const { error } = await supabase
+      .from("join_leave_history")
+      .insert({
+        kakao_id,
+        nickname,
+        type
+      });
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    res.json({ success: true });
+
+  } catch (err) {
+    res.status(500).json({ error: "서버 오류" });
+  }
+});
+
+
+// =====================================================
+// 5️⃣ 닉네임 변경 기록 조회 API
+// =====================================================
+app.get("/nickname-history/:kakao_id", async (req, res) => {
+  try {
+    const { kakao_id } = req.params;
+
+    const { data, error } = await supabase
+      .from("nickname_history")
+      .select("*")
+      .eq("kakao_id", kakao_id)
+      .order("changed_at", { ascending: false });
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    res.json(data);
+
+  } catch (err) {
     res.status(500).json({ error: "서버 오류" });
   }
 });
