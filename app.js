@@ -8,12 +8,8 @@ app.use(express.json());
 
 console.log("SUPABASE_URL:", process.env.SUPABASE_URL);
 console.log("SUPABASE_KEY:", process.env.SUPABASE_KEY ? "있음" : "없음");
-const { createClient } = require("@supabase/supabase-js");
 
-const app = express();
-app.use(express.json());
-
-// 🔹 Supabase 설정
+// 🔹 Supabase 연결
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_KEY
@@ -24,7 +20,7 @@ app.get("/", (req, res) => {
   res.send("서버 정상 작동 중");
 });
 
-// 🔹 /join 라우트
+// 🔹 join API
 app.post("/join", async (req, res) => {
   console.log("🔥 /join 요청 들어옴");
   console.log("Body:", req.body);
@@ -40,9 +36,9 @@ app.post("/join", async (req, res) => {
 
     if (!existing) {
       await supabase.from("users").insert({
-        name: name,
-        room: room,
-        join_count: 1
+        name,
+        room,
+        join_count: 1,
       });
       console.log("✅ 신규 유저 저장");
     } else {
@@ -54,14 +50,12 @@ app.post("/join", async (req, res) => {
     }
 
     res.json({ success: true });
-
   } catch (err) {
     console.log("❌ 에러:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// 🔹 서버 실행
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log("🚀 서버 실행 중, 포트:", PORT);
