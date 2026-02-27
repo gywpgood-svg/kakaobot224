@@ -6,27 +6,31 @@ const { createClient } = require("@supabase/supabase-js");
 const app = express();
 app.use(express.json());
 
+// ==============================
 // 🔹 Supabase 연결
+// ==============================
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_KEY
 );
 
+// ==============================
 // 🔹 서버 상태 확인
+// ==============================
 app.get("/", (req, res) => {
   res.send("서버 정상 작동 중");
 });
 
 
 // =====================================================
-// 🔥 1️⃣ 기존 /join API (네가 쓰던 기능 유지)
+// 1️⃣ 가입 API (기존 기능 유지)
 // =====================================================
-app.post("/join", async (req, res) => {
+app.post("/가입하다", async (req, res) => {
   try {
     const { 이름, 방 } = req.body;
 
     if (!이름 || !방) {
-      return res.status(400).json({ error: "이름 또는 방 누락" });
+      return res.status(400).json({ 오류: "이름 또는 방 누락" });
     }
 
     const { data: 기존 } = await supabase
@@ -50,17 +54,47 @@ app.post("/join", async (req, res) => {
       console.log("🔄 기존 사용자 업데이트");
     }
 
-    res.json({ success: true });
+    res.json({ 성공: true });
 
   } catch (err) {
     console.error("❌ 오류:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ 오류: err.message });
   }
 });
 
 
 // =====================================================
-// 🔥 2️⃣ 유저 자동 동기화 API (닉변 감지용)
+// 2️⃣ 사용자 기록 API (기존 유지)
+// =====================================================
+app.post("/사용자_기록", async (req, res) => {
+  try {
+    const { 카카오_id, 닉네임 } = req.body;
+
+    if (!카카오_id || !닉네임) {
+      return res.status(400).json({ 오류: "값이 부족함" });
+    }
+
+    const { error } = await supabase
+      .from("users")
+      .update({ current_nickname: 닉네임 })
+      .eq("kakao_id", 카카오_id);
+
+    if (error) {
+      console.error(error);
+      return res.status(500).json({ 오류: error.message });
+    }
+
+    res.json({ 성공: true });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ 오류: "서버 오류" });
+  }
+});
+
+
+// =====================================================
+// 3️⃣ 🔥 닉네임 자동 동기화 API (핵심)
 // =====================================================
 app.post("/user-sync", async (req, res) => {
   try {
@@ -71,7 +105,7 @@ app.post("/user-sync", async (req, res) => {
     }
 
     const { error } = await supabase
-      .from("users")  // ⚠ 여기 테이블 이름 확인
+      .from("users")
       .upsert(
         {
           kakao_id: kakao_id,
