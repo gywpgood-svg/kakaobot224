@@ -1,3 +1,13 @@
+require("dotenv").config();
+
+const express = require("express");
+const { createClient } = require("@supabase/supabase-js");
+
+const app = express();
+app.use(express.json());
+
+console.log("SUPABASE_URL:", process.env.SUPABASE_URL);
+console.log("SUPABASE_KEY:", process.env.SUPABASE_KEY ? "있음" : "없음");
 const express = require("express");
 const { createClient } = require("@supabase/supabase-js");
 
