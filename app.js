@@ -1,3 +1,6 @@
+app.get("/", (req, res) => {
+  res.send("서버 정상 작동 중입니다.");
+});
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
