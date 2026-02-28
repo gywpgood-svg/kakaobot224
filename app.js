@@ -1,3 +1,4 @@
+console.log("🔥 최신 코드 실행됨");
 const express = require("express");
 const crypto = require("crypto");
 const { createClient } = require("@supabase/supabase-js");
