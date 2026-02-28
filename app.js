@@ -1,190 +1,99 @@
 console.log("🔥 최신 코드 실행됨");
-
+require("dotenv").config();
 const express = require("express");
-const crypto = require("crypto");
 const { createClient } = require("@supabase/supabase-js");
+const crypto = require("crypto");
 
 const app = express();
 app.use(express.json());
 
-/* ============================= */
-/* ✅ 환경변수 */
-/* ============================= */
+// ===============================
+// 🔐 Supabase 연결
+// ===============================
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_KEY
+);
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
-const SALT = process.env.HASH_SALT;
-const ADMIN_KEY = process.env.ADMIN_KEY;
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-
-/* ============================= */
-/* ✅ 해시 함수 */
-/* ============================= */
-
-function hashUser(user_id) {
+// ===============================
+// 🔑 유저 해시 함수 (고정 식별용)
+// ===============================
+function hashUser(nickname) {
   return crypto
     .createHash("sha256")
-    .update(user_id + SALT)
+    .update(nickname)
     .digest("hex");
 }
 
-/* ============================= */
-/* ✅ 서버 확인 */
-/* ============================= */
-
+// ===============================
+// 🟢 기본 확인용
+// ===============================
 app.get("/", (req, res) => {
-  res.send("✅ 서버 정상 작동중");
+  res.send("Server is running");
 });
 
-/* ============================= */
-/* ✅ 🔥 일반 이벤트 저장 (/event) */
-/* ============================= */
-
+// ===============================
+// 📌 이벤트 수신 API
+// ===============================
 app.post("/event", async (req, res) => {
   try {
-    const { type, room, user_id, nickname } = req.body;
+    const { type, room, nickname } = req.body;
 
-    if (!type || !room || !user_id || !nickname)
+    if (!type || !room || !nickname) {
       return res.status(400).json({ error: "필수값 누락" });
+    }
 
-    const hashed = hashUser(user_id);
+    const hashed = hashUser(nickname);
 
     const { error } = await supabase.from("events").insert([
       {
-        type,
-        room,
-        user_id: hashed,
-        nickname,
+        type: type,
+        room: room,
+        nickname: nickname,
+        user_id: hashed
       },
     ]);
 
-    if (error) throw error;
+    if (error) {
+      console.error("DB 오류:", error);
+      return res.status(500).json({ error: error.message });
+    }
 
     res.json({ success: true });
+
   } catch (err) {
-    console.error("❌ /event 에러:", err);
-    res.status(500).json({ error: err.message });
+    console.error("서버 오류:", err);
+    res.status(500).json({ error: "서버 내부 오류" });
   }
 });
 
-/* ============================= */
-/* ✅ JOIN 이벤트 */
-/* ============================= */
-
-app.post("/join", async (req, res) => {
+// ===============================
+// 🗑 특정 유저 로그 삭제 API
+// ===============================
+app.delete("/delete/:user_id", async (req, res) => {
   try {
-    const { room, user_id, nickname } = req.body;
+    const { user_id } = req.params;
 
-    if (!room || !user_id || !nickname)
-      return res.status(400).json({ error: "필수값 누락" });
-
-    const hashed = hashUser(user_id);
-
-    const { error } = await supabase.from("events").insert([
-      {
-        type: "join",
-        room,
-        user_id: hashed,
-        nickname,
-      },
-    ]);
-
-    if (error) throw error;
-
-    res.json({ success: true });
-  } catch (err) {
-    console.error("❌ /join 에러:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-/* ============================= */
-/* ✅ 닉네임 변경 자동 기록 */
-/* ============================= */
-
-app.post("/nick-change", async (req, res) => {
-  try {
-    const { room, user_id, old_nick, new_nick } = req.body;
-
-    if (!room || !user_id || !old_nick || !new_nick)
-      return res.status(400).json({ error: "필수값 누락" });
-
-    const hashed = hashUser(user_id);
-
-    const { error } = await supabase.from("nick_history").insert([
-      {
-        room,
-        user_id: hashed,
-        old_nick,
-        new_nick,
-      },
-    ]);
-
-    if (error) throw error;
-
-    res.json({ success: true });
-  } catch (err) {
-    console.error("❌ /nick-change 에러:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-/* ============================= */
-/* ✅ 사용자 삭제 */
-/* ============================= */
-
-app.post("/delete-user", async (req, res) => {
-  try {
-    const { user_id } = req.body;
-
-    if (!user_id)
-      return res.status(400).json({ error: "user_id 필요" });
-
-    const hashed = hashUser(user_id);
-
-    await supabase.from("events").delete().eq("user_id", hashed);
-    await supabase.from("nick_history").delete().eq("user_id", hashed);
-
-    res.json({ success: true });
-  } catch (err) {
-    console.error("❌ /delete-user 에러:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-/* ============================= */
-/* ✅ 관리자 로그 조회 */
-/* ============================= */
-
-app.get("/admin/logs", async (req, res) => {
-  try {
-    const key = req.query.key;
-
-    if (key !== ADMIN_KEY)
-      return res.status(403).json({ error: "권한 없음" });
-
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from("events")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(100);
+      .delete()
+      .eq("user_id", user_id);
 
-    if (error) throw error;
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
 
-    res.json(data);
+    res.json({ success: true });
+
   } catch (err) {
-    console.error("❌ /admin/logs 에러:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "삭제 실패" });
   }
 });
 
-/* ============================= */
-/* ✅ 서버 실행 */
-/* ============================= */
-
-const PORT = process.env.PORT || 10000;
-
+// ===============================
+// 🚀 서버 실행
+// ===============================
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log("🚀 서버 실행중:", PORT);
+  console.log("Server running on port " + PORT);
 });
