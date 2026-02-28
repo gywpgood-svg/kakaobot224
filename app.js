@@ -53,7 +53,26 @@ app.post("/event", async (req, res) => {
         user_id: hashed
       },
     ]);
+// ===============================
+// 📄 이벤트 전체 조회 API
+// ===============================
+app.get("/events", async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from("events")
+      .select("*")
+      .order("time", { ascending: false });
 
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    res.json(data);
+
+  } catch (err) {
+    res.status(500).json({ error: "조회 실패" });
+  }
+});
     if (error) {
       console.error("DB 오류:", error);
       return res.status(500).json({ error: error.message });
