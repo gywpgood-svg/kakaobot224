@@ -14,76 +14,27 @@ const supabase = createClient(
   process.env.SUPABASE_KEY
 );
 
-// 🔹 SHA-256 해시 함수
+// 🔹 SHA-256 재해시 함수
 const hashKakaoId = (id) => {
-  return crypto.createHash('sha256').update(id).digest('hex');
+  return crypto.createHash("sha256").update(id).digest("hex");
 };
 
-// =====================================================
-// ✅ 닉네임 동기화 API
-// =====================================================
-app.post("/user-sync", async (req, res) => {
-  try {
-    const { kakao_id, nickname } = req.body;
-
-    if (!kakao_id || !nickname) {
-      return res.status(400).json({ error: "값 부족" });
-    }
-
-    const hashedKakaoId = hashKakaoId(kakao_id);  // 재해시 처리
-
-    const { data: existing } = await supabase
-      .from("users")
-      .select("*")
-      .eq("kakao_id", hashedKakaoId)
-      .maybeSingle();
-
-    if (!existing) {
-      await supabase.from("users").insert({
-        kakao_id: hashedKakaoId,
-        current_nickname: nickname,
-        total_join_count: 0,
-        total_leave_count: 0,
-        rejoin_count: 0
-      });
-
-      return res.json({ newUser: true });
-    }
-
-    if (existing.current_nickname !== nickname) {
-      await supabase
-        .from("users")
-        .update({ current_nickname: nickname })
-        .eq("kakao_id", hashedKakaoId);
-
-      return res.json({ nicknameChanged: true });
-    }
-
-    return res.json({ noChange: true });
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "서버 오류" });
-  }
-});
-
-// =====================================================
-// ✅ 입장 / 퇴장 처리 API
-// =====================================================
+//////////////////////////////////////////////////////
+// ✅ 입장 / 퇴장 처리 API (닉네임 저장 안함)
+//////////////////////////////////////////////////////
 app.post("/join-leave", async (req, res) => {
   try {
-    const { kakao_id, nickname, type } = req.body;
+    const { kakao_id, type } = req.body;
 
-    if (!kakao_id || !nickname || !type) {
+    if (!kakao_id || !type) {
       return res.status(400).json({ error: "값 부족" });
     }
 
-    const hashedKakaoId = hashKakaoId(kakao_id);  // 재해시 처리
+    const hashedKakaoId = hashKakaoId(kakao_id);
 
-    // 1️⃣ 로그 테이블 기록
+    // 1️⃣ 로그 기록 (닉네임 없음)
     await supabase.from("join_leave_logs").insert({
       kakao_id: hashedKakaoId,
-      nickname: nickname,
       type: type
     });
 
@@ -94,11 +45,10 @@ app.post("/join-leave", async (req, res) => {
       .eq("kakao_id", hashedKakaoId)
       .maybeSingle();
 
-    // 3️⃣ 유저가 없으면 새로 생성
+    // 3️⃣ 유저가 없으면 생성
     if (!user) {
       await supabase.from("users").insert({
         kakao_id: hashedKakaoId,
-        current_nickname: nickname,
         total_join_count: type === "join" ? 1 : 0,
         total_leave_count: type === "leave" ? 1 : 0,
         rejoin_count: 0,
@@ -117,12 +67,13 @@ app.post("/join-leave", async (req, res) => {
     if (type === "join") {
 
       const newJoinCount = (user.total_join_count || 0) + 1;
+
+      // 재입장은 "이전에 입장 기록이 있었을 경우" 증가
       const newRejoinCount =
         newJoinCount > 1 ? (user.rejoin_count || 0) + 1 : 0;
 
       await supabase.from("users")
         .update({
-          current_nickname: nickname,
           total_join_count: newJoinCount,
           rejoin_count: newRejoinCount,
           last_join_at: new Date()
@@ -159,38 +110,30 @@ app.post("/join-leave", async (req, res) => {
   }
 });
 
-// =====================================================
-// ✅ 사용자 삭제 API (삭제 요청 시)
-///////////////////////////////////////////////////////
+//////////////////////////////////////////////////////
+// ✅ 사용자 삭제 API
+//////////////////////////////////////////////////////
 app.post("/delete-user", async (req, res) => {
   try {
     const { kakao_id } = req.body;
 
     if (!kakao_id) {
-      return res.status(400).json({ error: "kakao_id가 필요합니다." });
+      return res.status(400).json({ error: "kakao_id 필요" });
     }
 
-    const hashedKakaoId = hashKakaoId(kakao_id);  // 재해시 처리
+    const hashedKakaoId = hashKakaoId(kakao_id);
 
-    // 1️⃣ 유저 삭제 (users 테이블에서)
-    const { error: deleteUserError } = await supabase
+    // users 삭제
+    await supabase
       .from("users")
       .delete()
       .eq("kakao_id", hashedKakaoId);
 
-    if (deleteUserError) {
-      return res.status(500).json({ error: deleteUserError.message });
-    }
-
-    // 2️⃣ 입장/퇴장 기록 삭제 (join_leave_logs 테이블에서)
-    const { error: deleteLogsError } = await supabase
+    // 로그 삭제
+    await supabase
       .from("join_leave_logs")
       .delete()
       .eq("kakao_id", hashedKakaoId);
-
-    if (deleteLogsError) {
-      return res.status(500).json({ error: deleteLogsError.message });
-    }
 
     res.json({ success: true });
 
@@ -200,9 +143,9 @@ app.post("/delete-user", async (req, res) => {
   }
 });
 
-// =====================================================
+//////////////////////////////////////////////////////
 // ✅ 서버 실행
-///////////////////////////////////////////////////////
+//////////////////////////////////////////////////////
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log("🚀 서버 실행 중:", PORT);
