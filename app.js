@@ -51,8 +51,22 @@ app.post("/event", async (req, res) => {
         room: room,
         nickname: nickname,
         user_id: hashed
-      },
+      }
     ]);
+
+    if (error) {
+      console.error("DB 오류:", error);
+      return res.status(500).json({ error: error.message });
+    }
+
+    res.json({ success: true });
+
+  } catch (err) {
+    console.error("서버 오류:", err);
+    res.status(500).json({ error: "서버 내부 오류" });
+  }
+});
+
 // ===============================
 // 📄 이벤트 전체 조회 API
 // ===============================
@@ -71,18 +85,6 @@ app.get("/events", async (req, res) => {
 
   } catch (err) {
     res.status(500).json({ error: "조회 실패" });
-  }
-});
-    if (error) {
-      console.error("DB 오류:", error);
-      return res.status(500).json({ error: error.message });
-    }
-
-    res.json({ success: true });
-
-  } catch (err) {
-    console.error("서버 오류:", err);
-    res.status(500).json({ error: "서버 내부 오류" });
   }
 });
 
